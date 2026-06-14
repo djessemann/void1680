@@ -278,21 +278,20 @@
 
   <!-- ── Sign on ── -->
   <section class="screen" id="s-signon">
-    <p class="eyebrow">Before you go live</p>
+    <p class="eyebrow">Warming the tubes</p>
     <h1 class="mark" style="font-size:clamp(34px,9vw,52px)">Find your<br>wavelength.</h1>
     <div class="sign-fields" style="margin-top:26px">
-      <label class="field-label" for="djname">Your name on the air</label>
-      <input class="field" id="djname" maxlength="40" placeholder="The Nightjar, DJ Static, your own name…" />
-      <label class="field-label" for="loc">Where you're broadcasting from</label>
-      <input class="field" id="loc" maxlength="60" placeholder="A garage. A mountain. The last room with a light on…" />
-      <label class="field-label" for="theme">Tonight's theme</label>
-      <input class="field" id="theme" maxlength="60" placeholder="The thing that compels you, not the thing that satisfies…" />
+      <label class="field-label" for="djname">Name on the air</label>
+      <input class="field" id="djname" maxlength="40" placeholder="The Nightjar, or whoever you are tonight" />
+      <label class="field-label" for="loc">Broadcasting from</label>
+      <input class="field" id="loc" maxlength="60" placeholder="The last room with a light on" />
+      <label class="field-label" for="theme">Tonight's obsession</label>
+      <input class="field" id="theme" maxlength="60" placeholder="Not what satisfies — what compels" />
     </div>
     <div class="actions">
       <button class="btn" id="goLive">Go live</button>
-      <button class="btn ghost" disabled title="Coming in a later phase">Connect Spotify · later</button>
+      <button class="btn ghost" disabled title="Spotify search arrives in a later broadcast">Connect Spotify · later</button>
     </div>
-    <p class="note">Songs are typed by hand for now. The Spotify connection comes next.</p>
   </section>
 
   <!-- ── Block (reused for all four) ── -->
@@ -505,7 +504,7 @@
     const read=$("#freqReadout");
     if(S.stage==="block"){ read.textContent=`${BLOCKS[SUITS[S.blockIndex]].freq} kHz · ${BLOCKS[SUITS[S.blockIndex]].name}`; }
     else if(S.stage==="signoff"){ read.textContent="off the air"; }
-    else { read.textContent="— standby —"; }
+    else { read.textContent="carrier off"; }
 
     // callsign
     $("#callsign").textContent = S.dj ? S.dj : "1680 AM";
