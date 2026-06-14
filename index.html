@@ -220,6 +220,17 @@
   .manual-close{position:sticky;top:0;float:right;background:var(--void);border:1px solid var(--line);color:var(--haze);border-radius:50%;width:30px;height:30px;cursor:pointer;font-family:"Space Mono",monospace}
   .manual-close:hover{border-color:var(--tungsten);color:var(--tungsten)}
 
+  /* operator tools cluster in the panel */
+  .panel-tools{display:flex;align-items:center;gap:12px;flex:none}
+
+  /* archive — past broadcasts */
+  .arc-item{display:flex;flex-direction:column;gap:2px}
+  .arc-item .arc-dj{font-family:"IM Fell English SC",serif;font-size:24px;color:var(--ink);margin:0}
+  .arc-item .arc-meta{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.08em;color:var(--ink-soft);text-transform:uppercase}
+  .arc-item .arc-theme{font-style:italic;color:var(--ink-soft);margin:6px 0 0}
+  .arc-empty{font-style:italic;color:var(--haze);text-align:center;margin:46px 0}
+  .logview{white-space:pre-wrap;word-break:break-word;font-family:"Space Mono",monospace;font-size:12.5px;line-height:1.65;color:var(--ink);margin:0}
+
   @media (max-width:520px){
     body{font-size:17px}
     .leaf{padding:20px 16px}
@@ -242,8 +253,11 @@
   <header class="panel" id="panel" hidden>
     <div class="panel-row">
       <div class="station"><span>VOID</span> <span class="call" id="callsign">1680&nbsp;AM</span></div>
-      <div class="onair"><span class="pip"></span><span id="onairlabel">STANDBY</span></div>
-      <button class="help-btn" id="helpOpen" aria-label="How to play">?</button>
+      <div class="panel-tools">
+        <div class="onair"><span class="pip"></span><span id="onairlabel">STANDBY</span></div>
+        <button class="help-btn" id="homeBtn" aria-label="Home (your broadcast is saved)" title="Home — your broadcast is saved">⌂</button>
+        <button class="help-btn" id="helpOpen" aria-label="How to play">?</button>
+      </div>
     </div>
     <div class="dial" id="dial">
       <div class="band"></div>
@@ -258,10 +272,7 @@
     <p class="eyebrow">Owner / Operator</p>
     <h1 class="mark">VOID<br>1680&nbsp;AM</h1>
     <p class="lead">A solo broadcast into the dark.</p>
-    <div class="actions" style="justify-content:center">
-      <button class="btn" id="toSignon">Sign on</button>
-      <button class="btn ghost" id="toHelp">How to play</button>
-    </div>
+    <div class="actions" id="titleActions" style="justify-content:center"></div>
     <p class="note" style="margin-top:36px">Based on <em>VOID 1680 AM</em> by Ken Lowery · Bannerless Games</p>
   </section>
 
@@ -297,14 +308,19 @@
       <textarea id="lastwords" placeholder="What it meant to you, or what you hope it meant to someone. Or just the weather."></textarea>
     </div>
     <div class="actions">
-      <button class="btn" id="exportLog">Export tonight's log</button>
+      <button class="btn" id="archiveBtn">Save to the archive</button>
+      <button class="btn ghost" id="exportLog">Export tonight's log</button>
       <button class="btn ghost" disabled title="Coming in a later phase">Save to Spotify · later</button>
     </div>
+    <p class="note" id="archiveNote"></p>
     <p class="closing">Your broadcast belongs to the airwaves now.</p>
     <div class="actions" style="justify-content:center;margin-top:8px">
       <button class="btn quiet" id="newNight">Begin a new night</button>
     </div>
   </section>
+
+  <!-- ── Past broadcasts (archive) ── -->
+  <section class="screen" id="s-archive"></section>
 
 </div>
 
@@ -431,6 +447,7 @@
 
   /* ───────────────────────── State ───────────────────────── */
   const SAVE_KEY = "void1680.session.v1";
+  const ARCHIVE_KEY = "void1680.archive.v1";
   let S = blank();
 
   function blank(){
@@ -440,12 +457,16 @@
       blockIndex:0,            // 0..3
       pendingRequest:null,     // {text} carried into next block
       blocks:{},               // suit -> { draws:[n,n,n], songs:[], onair:"", caller:{...}, callerNotes:"", backsell:"" }
-      lastwords:""
+      lastwords:"",
+      archivedId:null          // id of this night's archive entry, once saved
     };
   }
 
   function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
   function load(){ try{ const r=localStorage.getItem(SAVE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
+
+  function loadArchive(){ try{ const r=localStorage.getItem(ARCHIVE_KEY); return r?JSON.parse(r):[]; }catch(e){ return []; } }
+  function saveArchive(a){ try{ localStorage.setItem(ARCHIVE_KEY, JSON.stringify(a)); }catch(e){} }
 
   /* ───────────────────────── Helpers ───────────────────────── */
   const $ = s => document.querySelector(s);
@@ -508,12 +529,139 @@
   }
   function showPanel(on){ $("#panel").hidden=!on; }
 
+  // a night is "in progress" once you've gone live, until you start a new one
+  function inProgress(){ return !!S && (S.stage==="block" || S.stage==="signoff"); }
+
+  // the home screen — reached on boot and via the chrome ⌂ button (non-destructive)
+  function home(){
+    showPanel(false); setLive(false); renderTitle(); show("#s-title");
+  }
+
+  function renderTitle(){
+    const acts=$("#titleActions");
+    const arc=loadArchive();
+    let html="";
+    if(inProgress()){
+      html+=`<button class="btn" id="resumeBtn">Resume broadcast</button>`;
+      html+=`<button class="btn ghost" id="newFromTitle">Begin a new night</button>`;
+    } else {
+      html+=`<button class="btn" id="toSignon">Sign on</button>`;
+    }
+    html+=`<button class="btn ghost" id="toHelp">How to play</button>`;
+    if(arc.length){ html+=`<button class="btn ghost" id="toArchive">Past broadcasts · ${arc.length}</button>`; }
+    acts.innerHTML=html;
+    const r=$("#resumeBtn"); if(r) r.addEventListener("click",()=>go(S.stage));
+    const nf=$("#newFromTitle"); if(nf) nf.addEventListener("click",confirmNewNight);
+    const ts=$("#toSignon"); if(ts) ts.addEventListener("click",()=>go("signon"));
+    $("#toHelp").addEventListener("click",openManual);
+    const ta=$("#toArchive"); if(ta) ta.addEventListener("click",showArchive);
+  }
+
+  function confirmNewNight(){
+    if(confirm("Begin a new night? Tonight's broadcast will be cleared. (Saved past broadcasts are kept.)")){
+      S=blank(); save(); home();
+    }
+  }
+
   function go(stage){
     S.stage=stage; save();
-    if(stage==="title"){ showPanel(false); setLive(false); show("#s-title"); }
-    if(stage==="signon"){ showPanel(true); setLive(false); paintDial(); show("#s-signon"); }
+    if(stage==="title"){ home(); return; }
+    if(stage==="signon"){
+      showPanel(true); setLive(false); paintDial();
+      $("#djname").value=S.dj||""; $("#loc").value=S.loc||""; $("#theme").value=S.theme||"";
+      show("#s-signon");
+    }
     if(stage==="block"){ showPanel(true); paintDial(); renderBlock(); show("#s-block"); }
-    if(stage==="signoff"){ showPanel(true); setLive(false); paintDial(); $("#lastwords").value=S.lastwords||""; show("#s-signoff"); }
+    if(stage==="signoff"){ showPanel(true); setLive(false); paintDial(); enterSignoff(); show("#s-signoff"); }
+  }
+
+  /* ───────────────────────── Archive (past broadcasts) ───────────────────────── */
+  function enterSignoff(){
+    const ta=$("#lastwords");
+    ta.value=S.lastwords||"";
+    ta.oninput=()=>{ S.lastwords=ta.value; save(); };
+    updateArchiveBtn();
+  }
+  function updateArchiveBtn(){
+    const b=$("#archiveBtn"), note=$("#archiveNote");
+    if(S.archivedId){ b.disabled=true; b.textContent="Saved to archive ✓"; note.textContent="This broadcast is in your archive — find it on the home screen."; }
+    else { b.disabled=false; b.textContent="Save to the archive"; note.textContent="Saving keeps this broadcast on this device so you can read it again later."; }
+  }
+  function archiveCurrent(){
+    if(S.archivedId) return;
+    S.lastwords=$("#lastwords").value;
+    const entry={ id:Date.now(), savedAt:new Date().toISOString(), dj:S.dj, loc:S.loc, theme:S.theme, log:buildLog() };
+    const a=loadArchive(); a.unshift(entry); saveArchive(a);
+    S.archivedId=entry.id; save();
+    updateArchiveBtn();
+  }
+
+  function fmtDate(iso){
+    try{ const d=new Date(iso);
+      return d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"})+" · "+
+             d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+    }catch(e){ return ""; }
+  }
+
+  function showArchive(){ showPanel(false); setLive(false); renderArchive(); show("#s-archive"); }
+
+  function renderArchive(){
+    const a=loadArchive(); const el=$("#s-archive");
+    let body;
+    if(!a.length){
+      body=`<p class="arc-empty">No broadcasts saved yet.<br>Finish a night and save it to the archive.</p>`;
+    } else {
+      body=a.map(e=>`
+        <div class="leaf">
+          <span class="suitmark">♪</span>
+          <div class="arc-item">
+            <p class="arc-dj">${esc(e.dj||"(unnamed operator)")}</p>
+            <p class="arc-meta">${esc(fmtDate(e.savedAt))}${e.loc?" · "+esc(e.loc):""}</p>
+            ${e.theme?`<p class="arc-theme">${esc(e.theme)}</p>`:""}
+          </div>
+          <div class="actions" style="margin-top:16px">
+            <button class="btn quiet" data-read="${e.id}">Read</button>
+            <button class="btn quiet" data-exp="${e.id}">Export</button>
+            <button class="btn quiet" data-del="${e.id}">Delete</button>
+          </div>
+        </div>`).join("");
+    }
+    el.innerHTML=`
+      <p class="eyebrow">The archive</p>
+      <h1 class="mark" style="font-size:clamp(34px,9vw,52px)">Past<br>broadcasts.</h1>
+      ${body}
+      <div class="actions" style="margin-top:24px;justify-content:center">
+        <button class="btn ghost" id="arcHome">Back home</button>
+      </div>`;
+    $("#arcHome").addEventListener("click",home);
+    el.querySelectorAll("[data-read]").forEach(b=>b.addEventListener("click",()=>renderArchiveDetail(+b.dataset.read)));
+    el.querySelectorAll("[data-exp]").forEach(b=>b.addEventListener("click",()=>{
+      const e=loadArchive().find(x=>x.id==b.dataset.exp); if(e) exportText(`void-1680-${e.savedAt.slice(0,10)}.txt`, e.log);
+    }));
+    el.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
+      if(confirm("Delete this broadcast from the archive? This can't be undone.")){
+        saveArchive(loadArchive().filter(x=>x.id!=b.dataset.del)); renderArchive();
+      }
+    }));
+  }
+
+  function renderArchiveDetail(id){
+    const e=loadArchive().find(x=>x.id==id); if(!e){ renderArchive(); return; }
+    const el=$("#s-archive");
+    el.innerHTML=`
+      <p class="eyebrow">Aircheck · ${esc(fmtDate(e.savedAt))}</p>
+      <div class="leaf">
+        <h2 class="block-head" style="font-size:28px">${esc(e.dj||"(unnamed operator)")}</h2>
+        ${e.theme?`<p class="mood">${esc(e.theme)}</p>`:""}
+        <pre class="logview" style="margin-top:16px">${esc(e.log)}</pre>
+      </div>
+      <div class="actions" style="justify-content:center">
+        <button class="btn ghost" id="arcBack">Back to the archive</button>
+        <button class="btn ghost" id="arcExport">Export</button>
+      </div>`;
+    $("#arcBack").addEventListener("click",renderArchive);
+    $("#arcExport").addEventListener("click",()=>exportText(`void-1680-${e.savedAt.slice(0,10)}.txt`, e.log));
+    window.scrollTo({top:0,behavior:"instant"});
   }
 
   /* ───────────────────────── Block rendering ───────────────────────── */
@@ -740,24 +888,25 @@
     L.push(`Your broadcast belongs to the airwaves now.`);
     return L.join("\n");
   }
-  function exportLog(){
-    S.lastwords=$("#lastwords").value; save();
-    const blob=new Blob([buildLog()],{type:"text/plain;charset=utf-8"});
+  function exportText(name, text){
+    const blob=new Blob([text],{type:"text/plain;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    const stamp=new Date().toISOString().slice(0,10);
-    a.href=url; a.download=`void-1680-${stamp}.txt`;
+    a.href=url; a.download=name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function exportLog(){
+    S.lastwords=$("#lastwords").value; save();
+    exportText(`void-1680-${new Date().toISOString().slice(0,10)}.txt`, buildLog());
   }
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
   /* ───────────────────────── Wire up ───────────────────────── */
-  $("#toSignon").addEventListener("click",()=>go("signon"));
-  $("#toHelp").addEventListener("click",openManual);
   $("#helpOpen").addEventListener("click",openManual);
   $("#manualClose").addEventListener("click",closeManual);
+  $("#homeBtn").addEventListener("click",home);
   function openManual(){ $("#manual").classList.add("on"); }
   function closeManual(){ $("#manual").classList.remove("on"); }
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeManual(); });
@@ -770,24 +919,15 @@
     tune(()=>go("block"));
   });
 
+  $("#archiveBtn").addEventListener("click",archiveCurrent);
   $("#exportLog").addEventListener("click",exportLog);
-  $("#newNight").addEventListener("click",()=>{
-    if(confirm("Begin a new night? Tonight's log will be cleared.")){
-      S=blank(); save(); go("title");
-    }
-  });
+  $("#newNight").addEventListener("click",confirmNewNight);
 
-  /* ── boot: offer to resume ── */
+  /* ── boot: land home; resume is offered there if a night is in progress ── */
   (function boot(){
     const saved=load();
-    if(saved && saved.stage && saved.stage!=="title"){
-      S=saved;
-      // prefill signon fields if returning there
-      if(S.stage==="signon"){ $("#djname").value=S.dj||""; $("#loc").value=S.loc||""; $("#theme").value=S.theme||""; }
-      go(S.stage);
-    } else {
-      go("title");
-    }
+    if(saved && saved.stage){ S=saved; }
+    home();
   })();
 
 })();
