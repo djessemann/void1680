@@ -143,11 +143,30 @@
 
   .instruct{color:var(--ink-soft);font-size:16px;margin:16px 0 4px}
 
-  .prompt{margin:20px 0 0;padding-top:18px;border-top:1px solid rgba(36,27,18,.14)}
-  .prompt:first-of-type{border-top:none;padding-top:6px}
-  .prompt .q{margin:0 0 10px;color:var(--ink);font-size:18px;line-height:1.45}
-  .prompt .q .n{font-family:"Space Mono",monospace;font-size:12px;color:var(--ember);margin-right:8px;vertical-align:1px}
-  .req-tag{display:inline-block;font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);border:1px solid rgba(184,72,42,.4);border-radius:2px;padding:2px 6px;margin-bottom:8px}
+  .prompt{display:flex;gap:14px;align-items:flex-start;margin:18px 0 0;padding-top:18px;border-top:1px solid rgba(36,27,18,.12);animation:deal .45s ease both}
+  .prompt:first-of-type{border-top:none;padding-top:4px}
+  .prompt .body{flex:1;min-width:0}
+  .prompt .q{margin:0 0 10px;color:var(--ink);font-size:17.5px;line-height:1.45}
+  .req-tag{display:inline-block;font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);margin-bottom:8px}
+
+  /* the deck, made visible — drawn cards & the d6 */
+  .card{flex:none;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+    width:38px;height:52px;border-radius:5px;border:1px solid rgba(36,27,18,.28);
+    background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.12));
+    box-shadow:0 1px 3px rgba(0,0,0,.14);color:var(--ink);
+    font-family:"Space Mono",monospace;line-height:1;gap:3px;margin-top:2px}
+  .card.red{color:var(--ember)}
+  .card.req{border-color:rgba(184,72,42,.45);background:rgba(184,72,42,.08);color:var(--ember)}
+  .card .cv{font-size:15px;font-weight:700}
+  .card .cs{font-size:13px}
+  .die{flex:none;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;
+    border-radius:7px;border:1px solid rgba(184,72,42,.4);background:rgba(184,72,42,.08);
+    font-family:"Space Mono",monospace;font-size:16px;font-weight:700;color:var(--ember);margin-top:2px}
+
+  .caller-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:4px;animation:deal .5s ease both}
+  .topic-row{display:flex;gap:14px;align-items:flex-start;margin:18px 0 2px;animation:deal .5s .12s ease both}
+  .topic-row .topic{margin:0}
+  @keyframes deal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
   /* inputs: operator types in plain present-day text */
   input.song, textarea, input.field{
@@ -302,9 +321,8 @@
     <p class="eyebrow">Sign off</p>
     <div class="leaf">
       <h2 class="block-head">Last words</h2>
-      <p class="mood">before you leave the air.</p>
-      <label class="field-label" for="lastwords" style="margin-top:18px">Closing</label>
-      <textarea id="lastwords" placeholder="What it meant to you, or what you hope it meant to someone. Or just the weather."></textarea>
+      <p class="mood">Before the carrier goes cold.</p>
+      <textarea id="lastwords" aria-label="Closing" style="margin-top:16px" placeholder="What it meant to you, or what you hope it meant to someone out there. Or just the weather."></textarea>
     </div>
     <div class="actions">
       <button class="btn" id="archiveBtn">Save to the archive</button>
@@ -476,6 +494,12 @@
     for(let i=0;i<n;i++){ out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]); }
     return out.sort((a,b)=>a-b);
   }
+  // a dealt card: value (number or face letter) + the suit it was drawn from
+  function cardChip(val, suit){
+    const red = (suit==="hearts"||suit==="diamonds");
+    return `<span class="card${red?" red":""}"><span class="cv">${esc(val)}</span><span class="cs">${GLYPH[suit]}</span></span>`;
+  }
+  const dieChip = n => `<span class="die">${n}</span>`;
 
   /* ───────────────────────── Dial / chrome ───────────────────────── */
   function paintDial(){
@@ -691,20 +715,27 @@
 
     const slots=[];
     let slotIdx=0;
+    const delay=i=>`style="animation-delay:${i*70}ms"`;
     if(b.requestPrefill){
       slots.push(`
-        <div class="prompt">
-          <span class="req-tag">Honored request</span>
-          <p class="q">${esc(b.requestPrefill)}</p>
-          <input class="song" data-slot="${slotIdx}" value="${esc(b.songs[slotIdx]||"")}" placeholder="The song you're slotting in here…" />
+        <div class="prompt" ${delay(slotIdx)}>
+          <span class="card req"><span class="cv" style="font-size:18px">♪</span></span>
+          <div class="body">
+            <span class="req-tag">The request you honored</span>
+            <p class="q">${esc(b.requestPrefill)}</p>
+            <input class="song" data-slot="${slotIdx}" value="${esc(b.songs[slotIdx]||"")}" placeholder="The song you're slotting in" />
+          </div>
         </div>`);
       slotIdx++;
     }
     b.draws.forEach(n=>{
       slots.push(`
-        <div class="prompt">
-          <p class="q"><span class="n">${n}</span>${esc(PROMPTS[suit][n])}</p>
-          <input class="song" data-slot="${slotIdx}" value="${esc(b.songs[slotIdx]||"")}" placeholder="Search will live here later — type a song for now…" />
+        <div class="prompt" ${delay(slotIdx)}>
+          ${cardChip(n, suit)}
+          <div class="body">
+            <p class="q">${esc(PROMPTS[suit][n])}</p>
+            <input class="song" data-slot="${slotIdx}" value="${esc(b.songs[slotIdx]||"")}" placeholder="The song this calls up" />
+          </div>
         </div>`);
       slotIdx++;
     });
@@ -714,9 +745,8 @@
       <p class="eyebrow">${esc(meta.ord)}</p>
       <div class="leaf">
         <span class="suitmark">${GLYPH[suit]}</span>
-        <h2 class="block-head">${esc(meta.name)} <span class="ord">${esc(meta.freq)} kHz</span></h2>
+        <h2 class="block-head">${esc(meta.name)}</h2>
         <p class="mood">${esc(meta.mood)}</p>
-        <p class="instruct">Three prompts. Pick the first song that comes to mind for each.</p>
         ${slots.join("")}
       </div>
       <div class="actions">
@@ -734,15 +764,16 @@
   function renderOnAir(){
     const suit=SUITS[S.blockIndex]; const b=S.blocks[suit];
     setLive(true);
-    const first = (b.songs.find(s=>s&&s.trim())||"the first song").trim();
+    const firstSong = (b.songs.find(s=>s&&s.trim())||"").trim();
+    const firstLine = firstSong ? `<p class="note" style="margin-top:14px;color:var(--ink-soft)">First out of the gate — ${esc(firstSong)}.</p>` : "";
     const el=$("#s-block");
     el.innerHTML=`
-      <p class="eyebrow">On air · ${esc(BLOCKS[suit].freq)} kHz</p>
+      <p class="eyebrow">On air</p>
       <div class="leaf">
-        <h2 class="block-head">You're live.</h2>
-        <p class="mood">Introduce yourself, the show, ${esc(first)}.</p>
-        <label class="field-label" for="onair" style="margin-top:18px">Your intro</label>
-        <textarea id="onair" placeholder="Say where you are, who you're for, what's coming. As much or as little as you like.">${esc(b.onair||"")}</textarea>
+        <h2 class="block-head">The mic is hot.</h2>
+        <p class="mood">Somewhere out there, someone stopped scanning the dial. Talk to them.</p>
+        ${firstLine}
+        <textarea id="onair" aria-label="Your intro" style="margin-top:16px" placeholder="Where you are. Who you're for. What's coming.">${esc(b.onair||"")}</textarea>
       </div>
       <div class="actions">
         <button class="btn" id="toCaller">A caller's on the line</button>
@@ -784,19 +815,19 @@
     setLive(false);
 
     let whyLine="";
-    if(c.relation==="played") whyLine=`They're calling about a song you just played — <em>${esc(c.aboutPrompt.text)}</em>`;
-    else if(c.relation==="request") whyLine=`They're calling with a request.`;
-    else whyLine=`They don't care about the music. They just need to talk.`;
+    if(c.relation==="played") whyLine=`Calling about something you just played — <em>${esc(c.aboutPrompt.text)}</em>`;
+    else if(c.relation==="request") whyLine=`Calling with a request.`;
+    else whyLine=`Nothing about the music. They just need to talk.`;
 
     let requestBox="";
     if(c.relation==="request"){
       requestBox = c.requestHonored
-        ? `<div class="request-box"><p>Honored. <span class="rq">${esc(c.requestRoll.text)}</span> opens the next block.</p></div>`
+        ? `<div class="request-box"><p>You took it. <span class="rq">${esc(c.requestRoll.text)}</span> opens the next block.</p></div>`
         : `<div class="request-box">
-             <p>They want: <span class="rq">${esc(c.requestRoll.text)}</span></p>
+             <p>They're asking for <span class="rq">${esc(c.requestRoll.text)}</span></p>
              <div class="actions" style="margin-top:0">
-               <button class="btn quiet" id="honor">Honor it</button>
-               <button class="btn ghost" id="decline">Let it go</button>
+               <button class="btn quiet" id="honor">Take the request</button>
+               <button class="btn ghost" id="decline">Let it ring out</button>
              </div>
            </div>`;
     }
@@ -805,16 +836,24 @@
     el.innerHTML=`
       <p class="eyebrow">Incoming signal</p>
       <div class="leaf">
-        <span class="suitmark">${GLYPH[c.callerSuit]}</span>
         <div class="caller">
-          <p class="who">${esc(FACES[c.faceKey].label)}</p>
-          <p class="sub">${esc(FACES[c.faceKey].sub)}</p>
+          <div class="caller-head">
+            ${cardChip(c.faceKey, c.callerSuit)}
+            <div>
+              <p class="who">${esc(FACES[c.faceKey].label)}</p>
+              <p class="sub">${esc(FACES[c.faceKey].sub)}</p>
+            </div>
+          </div>
           <p class="why">${whyLine}</p>
-          <p class="topic">${esc(c.topic)}</p>
-          <p class="mood" style="margin-top:0">${esc(MOODWORD[c.callerSuit])}</p>
+          <div class="topic-row">
+            ${dieChip(c.topicN)}
+            <div>
+              <p class="topic">${esc(c.topic)}</p>
+              <p class="mood" style="margin-top:0">${esc(MOODWORD[c.callerSuit])} — the way they sound.</p>
+            </div>
+          </div>
           ${requestBox}
-          <label class="field-label" for="callerNotes" style="margin-top:20px">The call</label>
-          <textarea id="callerNotes" placeholder="Did they talk with you, or at you? Have they called before? Who did they remind you of?">${esc(b.callerNotes||"")}</textarea>
+          <textarea id="callerNotes" aria-label="The call" style="margin-top:20px" placeholder="Did they talk with you, or at you? Who did they remind you of?">${esc(b.callerNotes||"")}</textarea>
         </div>
       </div>
       <div class="actions">
@@ -824,7 +863,7 @@
     $("#callerNotes").addEventListener("input",e=>{ b.callerNotes=e.target.value; save(); });
     const honor=$("#honor"), decline=$("#decline");
     if(honor) honor.addEventListener("click",()=>{ c.requestHonored=true; S.pendingRequest={text:c.requestRoll.text}; save(); renderCaller(); });
-    if(decline) decline.addEventListener("click",()=>{ c.requestHonored=false; S.pendingRequest=null; save(); decline.closest(".request-box").innerHTML=`<p style="margin:0;color:var(--ink-soft);font-style:italic">Let go. The dial moves on.</p>`; });
+    if(decline) decline.addEventListener("click",()=>{ c.requestHonored=false; S.pendingRequest=null; save(); decline.closest(".request-box").innerHTML=`<p style="margin:0;color:var(--ink-soft);font-style:italic">You let it ring out. The dial moves on.</p>`; });
     $("#backOnAir").addEventListener("click",()=>tune(renderBacksell));
     paintDial();
   }
@@ -835,12 +874,11 @@
     const isLast = S.blockIndex===3;
     const el=$("#s-block");
     el.innerHTML=`
-      <p class="eyebrow">Back on air · ${esc(BLOCKS[suit].freq)} kHz</p>
+      <p class="eyebrow">Back on air</p>
       <div class="leaf">
         <h2 class="block-head">Backsell</h2>
-        <p class="mood">Say something about what played, and the call. Or don't.</p>
-        <label class="field-label" for="backsell" style="margin-top:18px">Closing the block</label>
-        <textarea id="backsell" placeholder="Name the songs, or what they meant. Talk about the caller, or keep them to yourself.">${esc(b.backsell||"")}</textarea>
+        <p class="mood">Name what played, or let it speak for itself. The call, too — or keep it.</p>
+        <textarea id="backsell" aria-label="Closing the block" style="margin-top:16px" placeholder="What it added up to, if anything. You don't owe the listener tidy.">${esc(b.backsell||"")}</textarea>
       </div>
       <div class="actions">
         <button class="btn" id="advance">${isLast?"Sign off":"Next block"}</button>
